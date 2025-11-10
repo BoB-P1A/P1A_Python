@@ -197,7 +197,7 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
     # 누적 컨테이너
     nodeDataArray: List[Dict[str, Any]] = []
     linkDataArray: List[Dict[str, Any]] = []
-    reg_default = {}; reg_database = {}
+    reg_default = {}; reg_database = {}; reg_recipient_use = {}; reg_recipient_provide = {}
     reg_system_collect = {}; reg_system_use = {}; reg_system_provide = {}; reg_system_discard = {}
     yslot = defaultdict(int); key_counter = [1]
     COLIDX = { "수집":0, "보유":1, "이용":2, "제공":3, "파기":4 }
@@ -310,33 +310,69 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         if not any([task, space, system, bundle, items, dept, purpose, method]):
             continue
 
+        # 보유 공간(database)
         dkey = None
         if space:
             nspace = norm(space)
             if nspace in reg_database:
-                dkey = unique_push_node(reg_database, nodeDataArray, space, "database",
-                                        COLIDX["보유"], yslot["보유"], key_counter, online_flag=None)
+                dkey = unique_push_node(
+                    reg_database, nodeDataArray, space, "database",
+                    COLIDX["보유"], yslot["보유"], key_counter, online_flag=None
+                )
             else:
-                dkey = unique_push_node(reg_database, nodeDataArray, space, "database",
-                                        COLIDX["보유"], yslot["보유"], key_counter, online_flag=online)
+                dkey = unique_push_node(
+                    reg_database, nodeDataArray, space, "database",
+                    COLIDX["보유"], yslot["보유"], key_counter, online_flag=online
+                )
                 yslot["보유"] += 1
 
+        # 이용 시스템(system)
         skey = None
         if system:
-            skey = unique_push_node(reg_system_use, nodeDataArray, system, "system",
-                                    COLIDX["이용"], yslot["이용"], key_counter, online_flag=online)
-            if skey is not None: yslot["이용"] += 1
+            skey = unique_push_node(
+                reg_system_use, nodeDataArray, system, "system",
+                COLIDX["이용"], yslot["이용"], key_counter, online_flag=online
+            )
+            if skey is not None:
+                yslot["이용"] += 1
 
+        # 이용자(recipient)
+        rkey = None
+        has_dept = bool(dept)
+        if has_dept:
+            rkey = unique_push_node(
+                reg_recipient_use, nodeDataArray, dept, "recipient",
+                COLIDX["이용"], yslot["이용"], key_counter, online_flag=online
+            )
+            if rkey is not None:
+                yslot["이용"] += 1
+
+        # PII 번호
         idx_num = pii_reg.get_idx_and_update(bundle, items)
         label_text = f"{idx_num}" if idx_num else None
 
+        # 링크: 보유 → 이용 시스템 (부서가 있으면 텍스트 없음)
         if dkey and skey:
-            push_link(linkDataArray, dkey, skey, label_text, is_online=online, is_encrypted=enc)
+            push_link(
+                linkDataArray, dkey, skey,
+                None if has_dept else label_text,
+                is_online=online, is_encrypted=enc
+            )
 
+        # 링크: (이용자가 있으면) 이용 시스템 → 이용자
+        if has_dept and skey and rkey:
+            push_link(
+                linkDataArray, skey, rkey,
+                label_text,
+                is_online=online, is_encrypted=enc
+            )
+
+        # description
         if system and task:
-            desc_builder.add("이용","이용 시스템",system,task,{
-                "이용 부서": dept, "이용 목적": purpose, "이용 방법": method
-            })
+            desc_builder.add(
+                "이용", "이용 시스템", system, task,
+                {"이용자": dept, "이용 목적": purpose, "이용 방법": method}
+            )
 
     # ---- 제공
     for r in sheets.get("provide", []):
@@ -356,44 +392,68 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         if not any([task, space, psys, recv, bundle, items, dept, purpose, method]):
             continue
 
+        # 보유 공간 (database)
         dkey = None
         if space:
             nspace = norm(space)
             if nspace in reg_database:
-                dkey = unique_push_node(reg_database, nodeDataArray, space, "database",
-                                        COLIDX["보유"], yslot["보유"], key_counter, online_flag=None)
+                dkey = unique_push_node(
+                    reg_database, nodeDataArray, space, "database",
+                    COLIDX["보유"], yslot["보유"], key_counter, online_flag=None
+                )
             else:
-                dkey = unique_push_node(reg_database, nodeDataArray, space, "database",
-                                        COLIDX["보유"], yslot["보유"], key_counter, online_flag=sys_on)
+                dkey = unique_push_node(
+                    reg_database, nodeDataArray, space, "database",
+                    COLIDX["보유"], yslot["보유"], key_counter, online_flag=sys_on
+                )
                 yslot["보유"] += 1
 
+        # 연계 시스템 (system) — 제공 단계 전용
         pkey = None
         if psys:
-            pkey = unique_push_node(reg_system_provide, nodeDataArray, psys, "system",
-                                    COLIDX["제공"], yslot["제공"], key_counter, online_flag=sys_on)
-            if pkey is not None: yslot["제공"] += 1
+            nsys = norm(psys)
+            is_new_sys = nsys not in reg_system_provide
+            pkey = unique_push_node(
+                reg_system_provide, nodeDataArray, psys, "system",
+                COLIDX["제공"], yslot["제공"], key_counter, online_flag=sys_on
+            )
+            if is_new_sys:
+                yslot["제공"] += 1
 
+        # 수신자 (recipient) — 전용 레지스트리 사용
         rkey = None
         if recv:
-            rkey = unique_push_node(reg_default, nodeDataArray, recv, "recipient",
-                                    COLIDX["제공"], yslot["제공"], key_counter, online_flag=None)
-            if rkey is not None: yslot["제공"] += 1
+            nrecv = norm(recv)
+            is_new_recv = nrecv not in reg_recipient_provide   # ★ reg_recipient_provide 사용
+            rkey = unique_push_node(
+                reg_recipient_provide, nodeDataArray, recv, "recipient",
+                COLIDX["제공"], yslot["제공"], key_counter, online_flag=None
+            )
+            if is_new_recv:
+                yslot["제공"] += 1
 
+        # PII 번호
         idx_num = pii_reg.get_idx_and_update(bundle, items)
         label_text = f"{idx_num}" if idx_num else None
 
+        # (1) [보유 공간] -> [연계 시스템]
         if dkey and pkey:
             pair = (dkey, pkey)
             if pair not in seen_provide_pair:
                 seen_provide_pair.add(pair)
                 push_link(linkDataArray, dkey, pkey, label_text, is_online=sys_on, is_encrypted=sys_en)
+
+        # (2) [연계 시스템] -> [수신자]
         if pkey and rkey:
             push_link(linkDataArray, pkey, rkey, label_text, is_online=r_on, is_encrypted=r_en)
+
+        # (3) 시스템이 없고 수신자만 있을 때: [보유] -> [수신자]
         if (pkey is None) and dkey and rkey:
             push_link(linkDataArray, dkey, rkey, label_text, is_online=r_on, is_encrypted=r_en)
 
+        # description
         if recv and task:
-            desc_builder.add("제공","수신자",recv,task,{
+            desc_builder.add("제공", "수신자", recv, task, {
                 "제공 부서": dept, "제공 목적": purpose, "제공 방법": method
             })
 

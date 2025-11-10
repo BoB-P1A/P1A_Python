@@ -836,36 +836,44 @@ function getPIIArrayFromPanel(){
   const list = document.getElementById('piiListScroll');
   const rows = Array.from(list.querySelectorAll('.piiRow'));
   return rows.map(r=>{
-    const ta = r.querySelector('textarea');
-    return ta ? ta.value : "";
+    const ta  = r.querySelector('textarea');
+    const div = r.querySelector('.pii-text');
+    return ta ? ta.value : (div ? div.innerText : "");
   });
 }
 function formatPIIItem(item){
   if (!item) return "";
   if (typeof item === "string") return item;
   if (item.id || item.fields){
-    const head = item.id ? String(item.id) : "";
+    const head = item.id ? `<b>${item.id}</b>` : "";
     const body = Array.isArray(item.fields) ? item.fields.join(", ") : "";
     return head + (body ? " : " + body : "");
   }
   return JSON.stringify(item);
 }
-function renderPIIFromJSON(piiArr){
-  clearAllPIIRows();
-  if (!Array.isArray(piiArr) || piiArr.length===0){
+
+function renderPIIFromJSON(arrInput){
+  const arr = Array.isArray(arrInput) ? arrInput : (window.piiArr || []);  // ★ 추가
+  const list = document.getElementById('piiListScroll');
+  list.innerHTML = "";
+
+  if (!Array.isArray(arr) || arr.length === 0){
     renumberPIIRows();
     return;
   }
-  // 첫 행 채우기
-  const list = document.getElementById('piiListScroll');
-  const firstRow = list.querySelector('.piiRow textarea');
-  if (firstRow){
-    firstRow.value = formatPIIItem(piiArr[0]);
-  }
-  // 나머지
-  for (let i=1;i<piiArr.length;i++){
-    addPIIRow(formatPIIItem(piiArr[i]));
-  }
+
+  arr.forEach((item, i) => {
+    const row = document.createElement("div");
+    row.className = "piiRow";
+    row.innerHTML = `
+      <div class="pii-bullet">${numToCircle(i + 1)}</div>
+      <div class="pii-textwrap">
+        <div class="pii-text">${formatPIIItem(item)}</div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+
   renumberPIIRows();
 }
 

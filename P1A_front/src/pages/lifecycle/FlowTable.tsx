@@ -324,7 +324,7 @@ export default function ProtectionFlowTable() {
       } else if (phase === 'storage') {
         headers = ['평가업무명', '세부업무명', '보유공간', '수집시스템', '보유항목', '보유항목명칭', '보유목적', '보유형태', '암호화항목', '온라인', '암호화'];
       } else if (phase === 'usage') {
-        headers = ['평가업무명', '세부업무명', '보유공간', '이용시스템', '이용항목', '이용항목명칭', '이용목적', '이용방법', '이용부서', '온라인', '암호화'];
+        headers = ['평가업무명', '세부업무명', '보유공간', '이용시스템', '이용항목', '이용항목명칭', '이용목적', '이용방법', '이용자', '온라인', '암호화'];
       } else if (phase === 'provision') {
         headers = ['평가업무명', '세부업무명', '보유공간', '연계시스템', '제공부서', '수신자', '제공항목', '제공항목명칭', '제공목적', '제공방법', '연계시스템온라인', '연계시스템암호화', '수신자온라인', '수신자암호화'];
       } else {
@@ -536,7 +536,7 @@ export default function ProtectionFlowTable() {
                         <TableHead className="min-w-[120px]">이용항목명칭</TableHead>
                         <TableHead className="min-w-[150px]">이용목적</TableHead>
                         <TableHead className="min-w-[200px]">이용방법</TableHead>
-                        <TableHead className="min-w-[120px]">이용부서</TableHead>
+                        <TableHead className="min-w-[120px]">이용자</TableHead>
                         <TableHead className="min-w-[100px]">온라인</TableHead>
                         <TableHead className="min-w-[100px]">암호화</TableHead>
                         <TableHead className="w-[80px]">작업</TableHead>
