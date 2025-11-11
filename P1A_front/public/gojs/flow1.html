@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>민원 처리 개인정보 흐름도 v8-3</title>
+<title>EPIA 개인정보 흐름도</title>
 
 <!-- GoJS -->
 <script src="https://cdn.jsdelivr.net/npm/gojs@3.0.22/release/go.js"></script>
@@ -964,26 +964,36 @@ function getTaskIdx(){
   const n = parseInt(String(s||"1"), 10);
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
-async function fetchCombined(){
+// 서버에서 derived 받기
+async function fetchCombinedFromDB(){
   const idx = getTaskIdx();
   const API_BASE = getAPIBase();
-  const url = `${API_BASE}/api/combined/${idx}?ts=${Date.now()}`;   // ← 백엔드 API 호출
-  try{
-    const r = await fetch(url, { cache: 'no-store' });
-    if (!r.ok) throw new Error(`HTTP ${r.status} while GET ${url}`);
-    const combined = await r.json();
-    return combined;
-  }catch(e){
-    console.warn('combined 가져오기 실패:', e);
-    throw e;
-  }
-  try{
-    const combined = await fetchJSONSafe(url);
-    return combined;
-  }catch(e){
-    console.warn('combinedX.json 불러오기 실패:', e);
-    throw e;
-  }
+  const url = `${API_BASE}/api/combined/${idx}?ts=${Date.now()}`;
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`HTTP ${r.status} while GET ${url}`);
+  return await r.json();
+}
+// 서버에 현재 combined 저장하기
+async function saveCombinedToDB(combined){
+  const idx = getTaskIdx();
+  const API_BASE = getAPIBase();
+  const url = `${API_BASE}/api/derived/${idx}`;
+  const r = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(combined)
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status} while PUT ${url}`);
+  return await r.json();
+}
+// 서버에 build 트리거(= sheets -> derived 갱신)
+async function triggerBuildOnServer(){
+  const idx = getTaskIdx();
+  const API_BASE = getAPIBase();
+  const url = `${API_BASE}/api/build?task_idx=${idx}`;
+  const r = await fetch(url, { method: 'POST' });
+  if (!r.ok) throw new Error(`HTTP ${r.status} while POST ${url}`);
+  return await r.json();
 }
 
 /* online 여부로 category 정규화 & link 스타일 정규화 */
@@ -1155,55 +1165,54 @@ function hookIO(){
     });
   }
 
-  // 불러오기 (combined.json -> 화면)
+  // 1) '흐름도에서 불러오기' = 서버에서 build 실행 후 최신 derived 로드
   document.getElementById('fetchBtn').onclick = async () => {
     try{
-      const combined = await fetchCombined();
+      await triggerBuildOnServer();                      // ★ build
+      const combined = await fetchCombinedFromDB();      // ★ 최신 derived
       await applyCombinedToScreen(combined);
     }catch(e){
-      console.error('불러오기 실패:', e);
-      alert('불러오기 실패 (백엔드 /api/combined 확인 필요)');
+      console.error('흐름표에서 불러오기 실패:', e);
+      alert('흐름표에서 불러오기 실패 (서버 /api/build, /api/combined 동작 확인)');
     }
   };
 
-  // 저장 (현재 모델+PII+desc를 textarea에 JSON으로)
-  document.getElementById('saveBtn').onclick = () => {
-    rerouteAllLinks(myDiagram);
+  // 2) '저장' = 현재 화면 상태를 DB derived로 저장
+  document.getElementById('saveBtn').onclick = async () => {
+    try{
+      rerouteAllLinks(myDiagram);
+      const diagramJSON = JSON.parse(myDiagram.model.toJson());
+      const piiArray    = getPIIArrayFromPanel();
+      const descOut = {
+        "수집": document.querySelector(".desc-collect")?.value || "",
+        "보유": document.querySelector(".desc-retain")?.value || "",
+        "이용": document.querySelector(".desc-use")?.value || "",
+        "제공": document.querySelector(".desc-provide")?.value || "",
+        "파기": document.querySelector(".desc-discard")?.value || ""
+      };
+      const combined = { diagram: diagramJSON, pii: piiArray, description: descOut };
 
-    const diagramJSON = JSON.parse(myDiagram.model.toJson());
-    const piiArray    = getPIIArrayFromPanel();
+      // 텍스트박스에도 넣고(기존 로직 유지)
+      box.value = JSON.stringify(combined, null, 2);
+      myDiagram.isModified = false;
 
-    const descOut = {
-      "수집": document.querySelector(".desc-collect")?.value || "",
-      "보유": document.querySelector(".desc-retain")?.value || "",
-      "이용": document.querySelector(".desc-use")?.value || "",
-      "제공": document.querySelector(".desc-provide")?.value || "",
-      "파기": document.querySelector(".desc-discard")?.value || ""
-    };
-
-    const combined = { diagram: diagramJSON, pii: piiArray, description: descOut };
-    box.value = JSON.stringify(combined, null, 2);
-    myDiagram.isModified = false;
-
-    window.parent?.postMessage({ type: "combined-json", payload: combined }, "*");
+      // ★ 서버 저장
+      await saveCombinedToDB(combined);
+      alert('저장되었습니다.');
+    }catch(e){
+      console.error('저장 실패:', e);
+      alert('저장 실패 (서버 /api/derived 확인)');
+    }
   };
 
-  // textarea에 적은 JSON을 다시 로드
-  document.getElementById('loadBtn').onclick = () => {
+  // 3) '불러오기' = DB에 저장된 derived 그대로 화면에 출력
+  document.getElementById('loadBtn').onclick = async () => {
     try{
-      const j = JSON.parse(box.value);
-      if (j.diagram){
-        const normalized = normalizeDiagram(j.diagram);
-        myDiagram.model = go.Model.fromJson(normalized);
-        // 직접 로드 시 초기 관통 방지
-        kickRerouteAndMergeOnce(myDiagram);
-        // alignTopLeft 유지 필요 시, rAF 뒤로 살짝 밀어 호출
-        requestAnimationFrame(() => alignTopLeftAfterLoad && alignTopLeftAfterLoad());
-      }
-      if (Array.isArray(j.pii)) renderPIIFromJSON(j.pii);
-      fillDescriptions(j.description || {});
+      const combined = await fetchCombinedFromDB();  // ★ 빌드 없이 가져옴
+      await applyCombinedToScreen(combined);
     }catch(e){
-      alert('모델 JSON 파싱 오류 (combined 형식 필요)');
+      console.error('불러오기 실패:', e);
+      alert('불러오기 실패 (서버 /api/combined 확인)');
     }
   };
 
@@ -1327,8 +1336,7 @@ window.addEventListener("message", async (ev) => {
       // ★ FastAPI 백엔드에 빌드 트리거
       await fetch(`${getAPIBase()}/api/build?task_idx=${idx}`, { method: "POST" });
 
-      // ★ 최신 combined{idx}.json 다시 읽어 반영
-      const combined = await fetchCombined();
+      const combined = await fetchCombinedFromDB();
       await applyCombinedToScreen(combined);
     } catch (e) {
       console.error(e);
