@@ -3,14 +3,19 @@
 1. requirements.txt 제작하기
 
 fastapi==0.115.5
+
 uvicorn[standard]==0.32.0
+
 motor==3.6.0
+
 pydantic==2.9.2
+
 python-dotenv==1.0.1
 
 2. .evn 파일 설정하기
 
 MONGO_URI=mongodb+srv://접속주소
+
 MONGO_DB=epia
 
 3. 서버 실행방법 (venv는 선택사항)
