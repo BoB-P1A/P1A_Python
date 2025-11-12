@@ -1,5 +1,10 @@
 https://github.com/user-attachments/assets/03a02da6-ba43-4920-9a5f-c743d6262fa8
 
+# PIA_Python 역할
+
+백엔드 서버 main.py 및 흐름도 변환 알고리즘 flowchart_build_online.py로 구성되어 있다.
+
+EPIA 흐름도 페이지에서 처리 업무별로 '흐름표에서 불러오기' 클릭 시 흐름도로 변환하여 DB에 저장하고 불러온다.
 
 # P1A_Python 실행 방법
 
