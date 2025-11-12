@@ -1,3 +1,6 @@
+https://github.com/user-attachments/assets/03a02da6-ba43-4920-9a5f-c743d6262fa8
+
+
 # P1A_Python 실행 방법
 
 1. requirements.txt 제작하기
