@@ -329,22 +329,24 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         # 이용 시스템(system)
         skey = None
         if system:
+            prev_len = len(nodeDataArray)
             skey = unique_push_node(
                 reg_system_use, nodeDataArray, system, "system",
                 COLIDX["이용"], yslot["이용"], key_counter, online_flag=online
             )
-            if skey is not None:
+            if len(nodeDataArray) > prev_len:                  # 새로 생성된 경우에만
                 yslot["이용"] += 1
 
         # 이용자(recipient)
         rkey = None
         has_dept = bool(dept)
         if has_dept:
+            prev_len = len(nodeDataArray)  
             rkey = unique_push_node(
                 reg_recipient_use, nodeDataArray, dept, "recipient",
                 COLIDX["이용"], yslot["이용"], key_counter, online_flag=online
             )
-            if rkey is not None:
+            if len(nodeDataArray) > prev_len:                  # 새로 생성된 경우에만
                 yslot["이용"] += 1
 
         # PII 번호

@@ -1,34 +1,50 @@
-https://github.com/user-attachments/assets/03a02da6-ba43-4920-9a5f-c743d6262fa8
-
 # PIA_Python 역할
 
 백엔드 서버 main.py 및 흐름도 변환 알고리즘 flowchart_build_online.py로 구성되어 있다.
 
-EPIA 처리 업무별로, '흐름표에서 불러오기' 클릭 시 DB의 흐름표 정보로 흐름도 정보를 변환하여 저장하고 흐름도를 불러온다.
+'흐름표에서 불러오기' : DB의 흐름표 정보로 흐름도 정보를 변환하여 저장하고 흐름도를 불러온다.
 
-'저장' 클릭 시 현재 화면의 흐름도 정보를 DB에 업데이트한다.
+'저장' 클릭 : 현재 화면의 흐름도 정보를 DB에 업데이트한다.
 
-'불러오기' 클릭 시 DB에 저장된 흐름도 정보로 흐름도를 불러온다.
+'불러오기' : DB에 저장된 흐름도 정보로 흐름도를 불러온다.
+
+우측 상단 '사진으로 다운로드(.png)' : S3 bucket에 사진을 저장하고, 사용자 PC에 다운로드 한 뒤 S3 bucket에서 삭제한다.
+
+우측 상단 '결과보고서에 포함' : S3 bucket에 사진을 저장한다.
+
+우측 상단 '포함 취소' : S3 bucket에서 사진을 삭제한다.
 
 # P1A_Python 실행 방법
 
 1. requirements.txt 제작하기
 
-fastapi==0.115.5
+fastapi==0.121.1
 
-uvicorn[standard]==0.32.0
+uvicorn==0.39.0
 
-motor==3.6.0
+motor==3.7.1
 
-pydantic==2.9.2
+pydantic==2.11.9
 
-python-dotenv==1.0.1
+python-dotenv==1.2.1
+
+boto3==1.40.71
+
+python-multipart==0.0.20
 
 2. .env 파일 제작하기
 
-MONGO_URI=mongodb+srv://접속주소
+MONGO_URI=mongodb+srv://{접속주소}
 
 MONGO_DB=epia
+
+AWS_ACCESS_KEY_ID={S3버킷 ID}
+
+AWS_SECRET_ACCESS_KEY={S3버킷 패스워드}
+
+AWS_S3_BUCKET_NAME=epia
+
+AWS_REGION=ap-southeast-2
 
 3. 서버 실행 (venv는 선택사항)
    
