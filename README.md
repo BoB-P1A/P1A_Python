@@ -1,4 +1,4 @@
-# P1A_Python 실행방법
+# P1A_Python 실행 방법
 
 1. requirements.txt 제작하기
 
