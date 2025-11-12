@@ -1,3 +1,7 @@
+
+https://github.com/user-attachments/assets/6ca85b0c-8890-41b1-b77b-aeb8769faba0
+
+
 # PIA_Python 역할
 
 백엔드 서버 main.py 및 흐름도 변환 알고리즘 flowchart_build_online.py로 구성되어 있다.
