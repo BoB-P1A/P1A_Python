@@ -310,7 +310,7 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         if not any([task, space, system, bundle, items, dept, purpose, method]):
             continue
 
-        # 보유 공간(database)
+        # 보유공간을 찾고, 없으면 보유공간 노드를 새로 생성
         dkey = None
         if space:
             nspace = norm(space)
@@ -394,7 +394,7 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         if not any([task, space, psys, recv, bundle, items, dept, purpose, method]):
             continue
 
-        # 보유 공간 (database)
+        # 보유공간을 찾고, 없으면 보유공간 노드를 새로 생성
         dkey = None
         if space:
             nspace = norm(space)
@@ -460,7 +460,6 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
             })
 
     # ---- 파기
-    reg_sep_database = {}
     for r in sheets.get("discard", []):
         task   = text_keep(r.get("discard_task"))
         space  = text_keep(r.get("discard_space"))
@@ -471,13 +470,11 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         bundle = text_keep(r.get("discard_bundle"))
         items  = text_keep(r.get("discard_items"))
         d_on   = bool(r.get("discard_online"))
-        sep_f  = bool(r.get("sep_keep_flag"))
-        sep_sp = text_keep(r.get("sep_space"))
-        sep_on = bool(r.get("sep_online"))
-        sep_en = bool(r.get("sep_encrypt"))
-        if not any([task, space, dsys, bundle, items, period, dept, proc, sep_f, sep_sp]):
+
+        if not any([task, space, dsys, bundle, items, period, dept, proc]):
             continue
 
+        # 보유공간을 찾고, 없으면 보유공간 노드를 새로 생성
         dkey = None
         if space:
             nspace = norm(space)
@@ -489,45 +486,29 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
                                         COLIDX["보유"], yslot["보유"], key_counter, online_flag=d_on)
                 yslot["보유"] += 1
 
-        dsys_label = dsys if not period else f"{dsys}"
+        # 파기 시스템 노드
         skey = None
+        dsys_label = dsys if not period else f"{dsys}"
         if dsys_label:
             skey = unique_push_node(reg_system_discard, nodeDataArray, dsys_label, "discard",
                                     COLIDX["파기"], yslot["파기"], key_counter, online_flag=d_on)
-            if skey is not None: yslot["파기"] += 1
-
+            if skey is not None:
+                yslot["파기"] += 1
+                
+        # pii 인덱스
         idx_num = pii_reg.get_idx_and_update(bundle, items)
         label_text = f"{idx_num}" if idx_num else None
 
-        if not sep_f:
-            if dkey and skey:
-                push_link(linkDataArray, dkey, skey, label_text, is_online=d_on, is_encrypted=False)
-            if dsys and task:
-                desc_builder.add("파기","파기 시스템",dsys,task,{
-                    "파기 부서": dept, "보관기간": period, "파기 절차": proc
-                })
-            continue
+        # 링크: (보유 공간 → 파기 시스템)
+        if dkey and skey:
+            push_link(linkDataArray, dkey, skey, label_text, is_online=d_on, is_encrypted=False)
 
-        sep_key = None
-        if sep_sp:
-            nsep = norm(sep_sp)
-            if nsep in reg_sep_database:
-                sep_key = unique_push_node(reg_sep_database, nodeDataArray, sep_sp, "database",
-                                           COLIDX["파기"], yslot["파기"], key_counter, online_flag=sep_on)
-            else:
-                sep_key = unique_push_node(reg_sep_database, nodeDataArray, sep_sp, "database",
-                                           COLIDX["파기"], yslot["파기"], key_counter, online_flag=sep_on)
-                reg_sep_database[nsep] = {"key": sep_key, "online": sep_on}
-                if sep_key is not None: yslot["파기"] += 1
-
-        if dkey and sep_key:
-            push_link(linkDataArray, dkey, sep_key, label_text, is_online=sep_on, is_encrypted=sep_en)
-        if sep_key and skey:
-            push_link(linkDataArray, sep_key, skey, label_text, is_online=d_on, is_encrypted=False)
-
+        # 설명
         if dsys and task:
-            desc_builder.add("파기","파기 시스템",dsys,task,{
-                "파기 부서": dept, "보관기간": period, "파기 절차": proc
+            desc_builder.add("파기", "파기 시스템", dsys, task, {
+                "파기 부서": dept,
+                "보관기간": period,
+                "파기 절차": proc
             })
 
     # ---- 마무리: description/labels
