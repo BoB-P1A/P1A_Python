@@ -20,23 +20,7 @@ https://github.com/user-attachments/assets/6ca85b0c-8890-41b1-b77b-aeb8769faba0
 
 # P1A_Python 실행 방법
 
-1. requirements.txt 제작하기
-
-fastapi==0.121.1
-
-uvicorn==0.39.0
-
-motor==3.7.1
-
-pydantic==2.11.9
-
-python-dotenv==1.2.1
-
-boto3==1.40.71
-
-python-multipart==0.0.20
-
-2. .env 파일 제작하기
+1. .env 파일 제작하기
 
 MONGO_URI=mongodb+srv://{접속주소}
 
@@ -50,7 +34,7 @@ AWS_S3_BUCKET_NAME=epia
 
 AWS_REGION=ap-southeast-2
 
-3. 서버 실행 (venv는 선택사항)
+2. 서버 실행 (venv는 선택사항)
    
 P1A_Python> python -m venv .venv
 
