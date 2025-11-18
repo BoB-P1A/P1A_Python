@@ -51,3 +51,7 @@ docker run -d --name p1a_py_backend \
   --env-file ./.env \
   -p 8000:8000 \
   p1a-python-backend:latest
+
+3. 도커 실행 중지
+
+docker stop p1a_py_backend
