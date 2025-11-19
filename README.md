@@ -18,19 +18,7 @@ https://github.com/user-attachments/assets/6ca85b0c-8890-41b1-b77b-aeb8769faba0
 
 우측 상단 '포함 취소' : S3 bucket에서 사진을 삭제한다.
 
-# .env 파일 제작 방법
-
-MONGO_URI=mongodb+srv://{접속주소}
-
-MONGO_DB=epia
-
-AWS_ACCESS_KEY_ID={S3버킷 ID}
-
-AWS_SECRET_ACCESS_KEY={S3버킷 패스워드}
-
-AWS_S3_BUCKET_NAME=epia
-
-AWS_REGION=ap-southeast-2
+# .env 파일 제작 (.env_example 참조)
 
 # 직접 실행하기 (venv는 선택사항)
    
@@ -40,18 +28,6 @@ P1A_Python> pip install -r requirements.txt
 
 P1A_Python> uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 도커로 실행하기
-1. 도커 빌드
-   
-P1A_Python> docker build -t p1a-python-backend:latest .
+# 도커 실행하기
 
-2. 도커 실행 (로컬 .env 사용)
-
-docker run -d --name p1a_py_backend \
-  --env-file ./.env \
-  -p 8000:8000 \
-  p1a-python-backend:latest
-
-3. 도커 실행 중지
-
-docker stop p1a_py_backend
+P1A_Python> npm run docker:up:fresh

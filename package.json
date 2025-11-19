@@ -1,0 +1,11 @@
+{
+  "name": "p1a-python-backend",
+  "version": "1.0.0",
+  "scripts": {
+    "docker:up": "docker-compose up -d --build",
+    "docker:up:fresh": "docker-compose down && docker-compose build --no-cache && docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:shell": "docker exec -it p1a_py_backend sh"
+  }
+}
