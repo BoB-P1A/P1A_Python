@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routers import flow, tasks, s3_snapshot  # 각 router 모듈
 
-app = FastAPI(title="Flow Backend", version="1.1.0")
+app = FastAPI(redirect_slashes=False)
 
 # CORS 설정
 app.add_middleware(
