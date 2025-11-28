@@ -11,3 +11,5 @@ python-dotenv==1.2.1
 boto3==1.40.71
 
 python-multipart==0.0.20
+
+openai>=1.40.0

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import flow, tasks, s3_snapshot  # 각 router 모듈
+from .routers import flow, tasks, s3_snapshot, ai_flow  # 각 router 모듈
 
 app = FastAPI(redirect_slashes=False)
 
@@ -16,3 +16,4 @@ app.add_middleware(
 app.include_router(flow.router)
 app.include_router(tasks.router)
 app.include_router(s3_snapshot.router)
+app.include_router(ai_flow.router)
