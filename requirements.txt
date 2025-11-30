@@ -13,3 +13,10 @@ boto3==1.40.71
 python-multipart==0.0.20
 
 openai>=1.40.0
+
+pdfplumber==0.11.5
+
+openpyxl==3.1.5
+
+python-docx==1.1.2
+
