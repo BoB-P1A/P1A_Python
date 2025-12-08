@@ -536,7 +536,8 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
     combined = {
         "diagram": diagram,
         "pii": pii_out,
-        "description": description_out_text
+        "description": description_out_text,
+        "concern": ""
     }
     return combined
 
