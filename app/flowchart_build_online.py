@@ -2,6 +2,7 @@
 import os, json, math, re, sys
 from collections import OrderedDict, defaultdict
 from typing import Dict, Any, List, Optional
+from app.utils.pii_detector import detect_sensitive_pii
 
 # ===== (옵션) 로컬 엑셀 테스트용 =====
 try:
@@ -57,7 +58,7 @@ def split_fields(fields_text: str) -> List[str]:
     return [p.strip() for p in parts if p.strip()]
 
 # -------------------------------------------------
-# PII
+# 처리 개인정보
 # -------------------------------------------------
 class PiiRegistry:
     def __init__(self):
@@ -93,7 +94,7 @@ class PiiRegistry:
         return out
 
 # -------------------------------------------------
-# Description
+# 설명
 # -------------------------------------------------
 class DescriptionBuilder:
     def __init__(self):
@@ -140,6 +141,70 @@ def pack_description_text(desc_dict: Dict[str, Any]) -> Dict[str, str]:
             lines.append("")
         out[phase] = "\n".join(lines).strip()
     return out
+
+# -------------------------------------------------
+# 우려사항
+# -------------------------------------------------
+def make_concern(detail_task: str, stage_label: str) -> str:
+    return f"'{detail_task}'업무의 '{stage_label}'단계에서 암호화가 이루어지지 않음"
+
+def attach_concern_from_sheet_row(sheet_row: dict, stage: str) -> str:
+    """
+    sheet_row: DB flow.sheets 의 row (collect_*, retain_* 형태)
+    stage: 'collect' | 'retain' | 'use' | 'provide'
+    return: concern string or ""
+    """
+    if stage == "collect":
+        detail_task = text_keep(sheet_row.get("collect_task"))
+        text = " ".join([
+            text_keep(sheet_row.get("collect_items")),
+            text_keep(sheet_row.get("collect_bundle")),
+        ])
+        encrypt_ok = (sheet_row.get("collect_encrypt") is True)
+        stage_label = "수집"
+
+    elif stage == "retain":
+        detail_task = text_keep(sheet_row.get("retain_task"))
+        text = " ".join([
+            text_keep(sheet_row.get("retain_items")),
+            text_keep(sheet_row.get("retain_bundle")),
+            text_keep(sheet_row.get("retain_enc_items")),  # 보유의 암호화 항목
+        ])
+        encrypt_ok = (sheet_row.get("retain_encrypt") is True)
+        stage_label = "보유"
+
+    elif stage == "use":
+        detail_task = text_keep(sheet_row.get("use_task"))
+        text = " ".join([
+            text_keep(sheet_row.get("use_items")),
+            text_keep(sheet_row.get("use_bundle")),
+        ])
+        encrypt_ok = (sheet_row.get("use_encrypt") is True)
+        stage_label = "이용"
+
+    elif stage == "provide":
+        detail_task = text_keep(sheet_row.get("provide_task"))
+        text = " ".join([
+            text_keep(sheet_row.get("provide_items")),
+            text_keep(sheet_row.get("provide_bundle")),
+        ])
+        # 제공은 연계시스템과 수신자 둘 중 하나라도 False면 우려
+        encrypt_ok = (
+            (sheet_row.get("provide_sys_encrypt") is True)
+            and (sheet_row.get("receiver_encrypt") is True)
+        )
+        stage_label = "제공"
+
+    else:
+        return ""
+
+    pii_flags = detect_sensitive_pii(text)
+    need_encrypt = any(pii_flags.values())
+
+    if need_encrypt and (not encrypt_ok):
+        return make_concern(detail_task, stage_label)
+
+    return ""
 
 # -------------------------------------------------
 # 노드 / 링크 관리
@@ -533,11 +598,33 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         "nodeDataArray": nodeDataArray,
         "linkDataArray": linkDataArray
     }
+
+    # 우려사항(concern) 생성: sheets 기준으로 키워드와 암호화 여부를 비교하여 판별
+    concerns = []
+    for r in sheets.get("collect", []):
+        c = attach_concern_from_sheet_row(r, "collect")
+        if c: concerns.append(c)
+
+    for r in sheets.get("retain", []):
+        c = attach_concern_from_sheet_row(r, "retain")
+        if c: concerns.append(c)
+
+    for r in sheets.get("use", []):
+        c = attach_concern_from_sheet_row(r, "use")
+        if c: concerns.append(c)
+
+    for r in sheets.get("provide", []):
+        c = attach_concern_from_sheet_row(r, "provide")
+        if c: concerns.append(c)
+
+    concern_text = "\n".join(concerns).strip()
+
+    # 최종 구조
     combined = {
         "diagram": diagram,
         "pii": pii_out,
         "description": description_out_text,
-        "concern": ""
+        "concern": concern_text
     }
     return combined
 
