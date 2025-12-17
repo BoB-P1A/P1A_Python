@@ -145,66 +145,11 @@ def pack_description_text(desc_dict: Dict[str, Any]) -> Dict[str, str]:
 # -------------------------------------------------
 # 우려사항
 # -------------------------------------------------
-def make_concern(detail_task: str, stage_label: str) -> str:
-    return f"'{detail_task}'업무의 '{stage_label}'단계에서 암호화가 이루어지지 않음"
-
-def attach_concern_from_sheet_row(sheet_row: dict, stage: str) -> str:
-    """
-    sheet_row: DB flow.sheets 의 row (collect_*, retain_* 형태)
-    stage: 'collect' | 'retain' | 'use' | 'provide'
-    return: concern string or ""
-    """
-    if stage == "collect":
-        detail_task = text_keep(sheet_row.get("collect_task"))
-        text = " ".join([
-            text_keep(sheet_row.get("collect_items")),
-            text_keep(sheet_row.get("collect_bundle")),
-        ])
-        encrypt_ok = (sheet_row.get("collect_encrypt") is True)
-        stage_label = "수집"
-
-    elif stage == "retain":
-        detail_task = text_keep(sheet_row.get("retain_task"))
-        text = " ".join([
-            text_keep(sheet_row.get("retain_items")),
-            text_keep(sheet_row.get("retain_bundle")),
-            text_keep(sheet_row.get("retain_enc_items")),  # 보유의 암호화 항목
-        ])
-        encrypt_ok = (sheet_row.get("retain_encrypt") is True)
-        stage_label = "보유"
-
-    elif stage == "use":
-        detail_task = text_keep(sheet_row.get("use_task"))
-        text = " ".join([
-            text_keep(sheet_row.get("use_items")),
-            text_keep(sheet_row.get("use_bundle")),
-        ])
-        encrypt_ok = (sheet_row.get("use_encrypt") is True)
-        stage_label = "이용"
-
-    elif stage == "provide":
-        detail_task = text_keep(sheet_row.get("provide_task"))
-        text = " ".join([
-            text_keep(sheet_row.get("provide_items")),
-            text_keep(sheet_row.get("provide_bundle")),
-        ])
-        # 제공은 연계시스템과 수신자 둘 중 하나라도 False면 우려
-        encrypt_ok = (
-            (sheet_row.get("provide_sys_encrypt") is True)
-            and (sheet_row.get("receiver_encrypt") is True)
-        )
-        stage_label = "제공"
-
-    else:
-        return ""
-
-    pii_flags = detect_sensitive_pii(text)
-    need_encrypt = any(pii_flags.values())
-
-    if need_encrypt and (not encrypt_ok):
-        return make_concern(detail_task, stage_label)
-
-    return ""
+def make_concern(detail_task: str, stage_label: str, side_label: str = "") -> str:
+    # side_label 예: "연계시스템", "수신자", "수집시스템", "보유공간", "이용시스템", "이용자"
+    if side_label:
+        return f"'{stage_label}'단계 '{detail_task}'업무의 [{side_label}]에서 암호화가 이루어지지 않음"
+    return f"'{stage_label}'단계 '{detail_task}'업무에서 암호화가 이루어지지 않음"
 
 # -------------------------------------------------
 # 노드 / 링크 관리
@@ -269,6 +214,8 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
     pii_reg = PiiRegistry()
     desc_builder = DescriptionBuilder()
     seen_provide_pair = set()
+    concern_node_keys = set()
+    concerns = []
 
     # ---- 수집
     for r in sheets.get("collect", []):
@@ -315,6 +262,14 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
                 "수집 시스템": system, "수집 경로": route, "수집 부서": dept, "수집 목적": purpose
             })
 
+        # 우려사항/스타(수집): 온라인 T + 키워드 + 암호화 F ---
+        need_encrypt = any(detect_sensitive_pii(f"{items} {bundle}").values())
+        if need_encrypt and online and (not enc):
+            collect_system = text_keep(r.get("collect_system")) or "수집시스템"
+            concerns.append(make_concern(task, "수집", collect_system))
+            if skey:
+                concern_node_keys.add(skey)  # 도착 노드(수집시스템)
+
     # ---- 보유
     for r in sheets.get("retain", []):
         task   = text_keep(r.get("retain_task"))
@@ -359,6 +314,14 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
             desc_builder.add("보유","보유 공간",space,task,{
                 "보유 형태": form, "보유 목적": purpose, "암호화 항목": enc_it
             })
+
+        # 우려사항/스타(보유): 온라인 T + 키워드 + 암호화 F ---
+        need_encrypt = any(detect_sensitive_pii(f"{items} {bundle} {enc_it}").values())
+        if need_encrypt and online and (not enc):
+            retain_space = text_keep(r.get("retain_space")) or "보유공간"
+            concerns.append(make_concern(task, "보유", retain_space))
+            if dkey:
+                concern_node_keys.add(dkey)  # 도착 노드(DB)
 
     # ---- 이용
     for r in sheets.get("use", []):
@@ -440,6 +403,15 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
                 "이용", "이용 시스템", system, task,
                 {"이용자": dept, "이용 목적": purpose, "이용 방법": method}
             )
+
+        # 우려사항/스타(이용): 온라인 T + 키워드 + 암호화 F ---
+        need_encrypt = any(detect_sensitive_pii(f"{items} {bundle}").values())
+        if need_encrypt and online and (not enc):
+            # 도착: 이용시스템
+            use_system = text_keep(r.get("use_system")) or "이용시스템"
+            concerns.append(make_concern(task, "이용", use_system))
+            if skey:
+                concern_node_keys.add(skey)
 
     # ---- 제공
     for r in sheets.get("provide", []):
@@ -524,6 +496,23 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
                 "제공 부서": dept, "제공 목적": purpose, "제공 방법": method
             })
 
+        # 우려사항/스타(제공): 쪽별 분리
+        need_encrypt = any(detect_sensitive_pii(f"{items} {bundle}").values())
+        sys_issue  = need_encrypt and sys_on and (not sys_en)
+        recv_issue = need_encrypt and r_on   and (not r_en)
+        # 연계시스템 문제 → (보유공간 -> 연계시스템) 도착: pkey
+        if sys_issue:
+            provide_system = text_keep(r.get("provide_system")) or "연계시스템"
+            concerns.append(make_concern(task, "제공", provide_system))
+            if pkey:
+                concern_node_keys.add(pkey)
+        # 수신자 문제 → (연계시스템 -> 수신자) 또는 (보유공간 -> 수신자) 도착: rkey
+        if recv_issue:
+            receiver = text_keep(r.get("receiver")) or "수신자"
+            concerns.append(make_concern(task, "제공", receiver))
+            if rkey:
+                concern_node_keys.add(rkey)
+
     # ---- 파기
     for r in sheets.get("discard", []):
         task   = text_keep(r.get("discard_task"))
@@ -599,24 +588,7 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         "linkDataArray": linkDataArray
     }
 
-    # 우려사항(concern) 생성: sheets 기준으로 키워드와 암호화 여부를 비교하여 판별
-    concerns = []
-    for r in sheets.get("collect", []):
-        c = attach_concern_from_sheet_row(r, "collect")
-        if c: concerns.append(c)
-
-    for r in sheets.get("retain", []):
-        c = attach_concern_from_sheet_row(r, "retain")
-        if c: concerns.append(c)
-
-    for r in sheets.get("use", []):
-        c = attach_concern_from_sheet_row(r, "use")
-        if c: concerns.append(c)
-
-    for r in sheets.get("provide", []):
-        c = attach_concern_from_sheet_row(r, "provide")
-        if c: concerns.append(c)
-
+    # 우려사항 줄 나누기
     concern_text = "\n".join(concerns).strip()
 
     # 최종 구조
@@ -624,7 +596,8 @@ def build_from_sheets(sheets: Dict[str, Any], title: str = "") -> Dict[str, Any]
         "diagram": diagram,
         "pii": pii_out,
         "description": description_out_text,
-        "concern": concern_text
+        "concern": concern_text,
+        "concern_node_keys": sorted(list(concern_node_keys))
     }
     return combined
 
